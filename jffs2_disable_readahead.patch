@@ -1,0 +1,56 @@
+diff -uprN -X linux-2.6.37.1-vanilla/Documentation/dontdiff linux-2.6.37.1-vanilla/fs/jffs2/fs.c linux-2.6.37.1/fs/jffs2/fs.c
+--- linux-2.6.37.1-vanilla/fs/jffs2/fs.c	2011-02-18 00:44:35.000000000 +0100
++++ linux-2.6.37.1/fs/jffs2/fs.c	2013-07-23 10:34:59.168542847 +0200
+@@ -281,6 +281,8 @@ struct inode *jffs2_iget(struct super_bl
+ 	inode->i_nlink = f->inocache->pino_nlink;
+ 
+ 	inode->i_blocks = (inode->i_size + 511) >> 9;
++  
++  inode->i_mapping->backing_dev_info = &c->bdi;
+ 
+ 	switch (inode->i_mode & S_IFMT) {
+ 
+@@ -463,6 +465,8 @@ struct inode *jffs2_new_inode (struct in
+ 
+ 	inode->i_blocks = 0;
+ 	inode->i_size = 0;
++  
++  inode->i_mapping->backing_dev_info = &c->bdi;
+ 
+ 	if (insert_inode_locked(inode) < 0) {
+ 		make_bad_inode(inode);
+@@ -502,6 +506,13 @@ int jffs2_do_fill_super(struct super_blo
+ 	size_t blocks;
+ 
+ 	c = JFFS2_SB_INFO(sb);
++  
++  c->bdi.capabilities = BDI_CAP_MAP_COPY;
++  c->bdi.unplug_io_fn = default_unplug_io_fn;
++  c->bdi.ra_pages = 0;
++  ret  = bdi_init(&c->bdi);
++  if (ret)
++      printk("Error disabling RA \n");
+ 
+ #ifndef CONFIG_JFFS2_FS_WRITEBUFFER
+ 	if (c->mtd->type == MTD_NANDFLASH) {
+diff -uprN -X linux-2.6.37.1-vanilla/Documentation/dontdiff linux-2.6.37.1-vanilla/fs/jffs2/jffs2_fs_sb.h linux-2.6.37.1/fs/jffs2/jffs2_fs_sb.h
+--- linux-2.6.37.1-vanilla/fs/jffs2/jffs2_fs_sb.h	2011-02-18 00:44:35.000000000 +0100
++++ linux-2.6.37.1/fs/jffs2/jffs2_fs_sb.h	2013-07-23 10:35:45.236045345 +0200
+@@ -23,6 +23,8 @@
+ #include <linux/list.h>
+ #include <linux/rwsem.h>
+ 
++#include <linux/backing-dev.h>
++
+ #define JFFS2_SB_FLAG_RO 1
+ #define JFFS2_SB_FLAG_SCANNING 2 /* Flash scanning is in progress */
+ #define JFFS2_SB_FLAG_BUILDING 4 /* File system building is in progress */
+@@ -35,6 +37,8 @@ struct jffs2_inodirty;
+ */
+ struct jffs2_sb_info {
+ 	struct mtd_info *mtd;
++  
++  struct backing_dev_info bdi;
+ 
+ 	uint32_t highest_ino;
+ 	uint32_t checked_ino;

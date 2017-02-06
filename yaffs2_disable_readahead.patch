@@ -1,0 +1,63 @@
+diff -uprN -X linux-2.6.37.1-vanilla/Documentation/dontdiff linux-2.6.37.1-vanilla/fs/yaffs2/yaffs_guts.h linux-2.6.37.1/fs/yaffs2/yaffs_guts.h
+--- linux-2.6.37.1-vanilla/fs/yaffs2/yaffs_guts.h	2013-07-23 09:52:25.939062381 +0200
++++ linux-2.6.37.1/fs/yaffs2/yaffs_guts.h	2013-07-23 09:40:35.501664558 +0200
+@@ -17,6 +17,7 @@
+ #define __YAFFS_GUTS_H__
+ 
+ #include "yportenv.h"
++#include <linux/backing-dev.h>
+ 
+ #define YAFFS_OK	1
+ #define YAFFS_FAIL  0
+@@ -629,6 +630,8 @@ struct yaffs_dev {
+ 	struct yaffs_param param;
+ 	struct yaffs_driver drv;
+ 	struct yaffs_tags_handler tagger;
++  
++  struct backing_dev_info bdi;
+ 
+ 	/* Context storage. Holds extra OS specific data for this device */
+ 
+diff -uprN -X linux-2.6.37.1-vanilla/Documentation/dontdiff linux-2.6.37.1-vanilla/fs/yaffs2/yaffs_vfs.c linux-2.6.37.1/fs/yaffs2/yaffs_vfs.c
+--- linux-2.6.37.1-vanilla/fs/yaffs2/yaffs_vfs.c	2013-07-23 09:52:25.947062306 +0200
++++ linux-2.6.37.1/fs/yaffs2/yaffs_vfs.c	2013-07-23 09:47:28.729827989 +0200
+@@ -1128,6 +1128,8 @@ static struct inode *yaffs_iget(struct s
+ 	obj = yaffs_find_by_number(dev, inode->i_ino);
+ 
+ 	yaffs_fill_inode_from_obj(inode, obj);
++  
++  inode->i_mapping->backing_dev_info = &dev->bdi;
+ 
+ 	yaffs_gross_unlock(dev);
+ 
+@@ -1292,6 +1294,9 @@ static int yaffs_mknod(struct inode *dir
+ 			obj->obj_id, atomic_read(&inode->i_count));
+ 		error = 0;
+ 		yaffs_fill_inode_from_obj(dir, parent);
++    
++    inode->i_mapping->backing_dev_info = &dev->bdi;
++    
+ 	} else {
+ 		yaffs_trace(YAFFS_TRACE_OS, "yaffs_mknod failed making object");
+ 		error = -ENOMEM;
+@@ -2608,6 +2613,7 @@ static struct super_block *yaffs_interna
+ 	char *data_str = (char *)data;
+ 	struct yaffs_linux_context *context = NULL;
+ 	struct yaffs_param *param;
++  int ret;
+ 
+ 	int read_only = 0;
+ 	int inband_tags = 0;
+@@ -2745,6 +2751,12 @@ static struct super_block *yaffs_interna
+ 	sb->u.generic_sbp = dev;
+ #endif
+ 
++  dev->bdi.capabilities = BDI_CAP_MAP_COPY;
++  dev->bdi.unplug_io_fn = default_unplug_io_fn;
++  dev->bdi.ra_pages = 0;
++  ret  = bdi_init(&dev->bdi);
++  if (ret)
++      printk("Error disabling RA \n");
+ 
+ 	dev->driver_context = mtd;
+ 	param->name = mtd->name;
